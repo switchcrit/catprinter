@@ -7,132 +7,228 @@
 <title>Cat Printer</title>
 <style>
   :root {
-    --bg: #f4f1ea; --card: #fffdf8; --ink: #1d1b18; --muted: #6f6a61; --line: #e3ddd0;
+    --bg: #f4f1ea; --card: #fffdf8; --ink: #1d1b18; --muted: #6f6a61; --line: #e3ddd0; --field: #f4f1ea;
     --accent: #1f6f5c; --accent-ink: #ffffff; --warn: #b4542b; --ok: #2f8a4c; --paper: #ffffff;
     --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.05);
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #161513; --card: #211f1c; --ink: #f1ede4; --muted: #a39d92; --line: #35322d;
+      --bg: #161513; --card: #211f1c; --ink: #f1ede4; --muted: #a39d92; --line: #35322d; --field: #191816;
       --accent: #4fb596; --accent-ink: #0d1f1a; --warn: #e08a5e; --ok: #5fc27c; --paper: #f7f5f0;
       --shadow: none;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #161513; --card: #211f1c; --ink: #f1ede4; --muted: #a39d92; --line: #35322d;
+    --bg: #161513; --card: #211f1c; --ink: #f1ede4; --muted: #a39d92; --line: #35322d; --field: #191816;
     --accent: #4fb596; --accent-ink: #0d1f1a; --warn: #e08a5e; --ok: #5fc27c; --paper: #f7f5f0;
     --shadow: none;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.4 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
     -webkit-tap-highlight-color: transparent; }
-  main { max-width: 520px; margin: 0 auto; padding: 16px 16px calc(120px + env(safe-area-inset-bottom)); }
-  header { display: flex; align-items: center; gap: 12px; margin: 4px 0 16px; }
+  button { font: inherit; color: inherit; cursor: pointer; }
+  main { max-width: 520px; margin: 0 auto; padding: 12px 16px calc(110px + env(safe-area-inset-bottom)); }
+
+  /* Header */
+  header { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 10px;
+    margin: 0 -16px; padding: calc(10px + env(safe-area-inset-top)) 16px 10px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
   h1 { font-size: 22px; margin: 0; letter-spacing: -.01em; flex: 1; }
-  .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
-  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
-  .dot.ok { background: var(--ok); } .dot.busy { background: var(--warn); }
+  .pill { display: inline-flex; align-items: center; gap: 7px; border: 1px solid var(--line); background: var(--card);
+    border-radius: 999px; padding: 7px 12px; font-size: 14px; max-width: 60vw; }
+  .pill span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dot { flex: 0 0 auto; width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.ok { background: var(--ok); } .dot.busy { background: var(--warn); animation: pulse 1s infinite alternate; }
+  @keyframes pulse { to { opacity: .35; } }
+  .icon-btn { display: inline-grid; place-items: center; width: 38px; height: 38px; border-radius: 50%;
+    border: 1px solid var(--line); background: var(--card); padding: 0; }
+  .icon-btn svg, .tool svg { width: 20px; height: 20px; }
+
+  /* Paper preview */
+  .paper-wrap { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 6px 0 16px; }
+  .paper { position: relative; width: 100%; max-width: 384px; background: var(--paper); border-radius: 3px 3px 0 0;
+    box-shadow: 0 1px 6px rgba(0,0,0,.18); padding: 0 0 10px; overflow: hidden; }
+  .paper::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 10px;
+    background: linear-gradient(-45deg, var(--bg) 5px, transparent 0) 0 5px / 10px 10px repeat-x,
+                linear-gradient(45deg, var(--bg) 5px, transparent 0) 0 5px / 10px 10px repeat-x; }
+  .paper-scroll { max-height: 55vh; overflow-y: auto; }
+  .paper canvas { display: block; width: 100%; image-rendering: pixelated; }
+  .paper .empty { position: absolute; inset: 0; display: grid; place-items: center; color: #9a958c; font-size: 14px; }
+  .hint { font-size: 13px; color: var(--muted); }
+
+  /* Cards & controls */
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
     margin-bottom: 12px; box-shadow: var(--shadow); }
   .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted);
     margin: 0 0 10px; font-weight: 600; }
-  .seg { display: flex; background: var(--bg); border-radius: 10px; padding: 3px; gap: 3px; }
-  .seg button { flex: 1; border: 0; background: transparent; color: var(--ink); padding: 8px;
-    border-radius: 8px; font: inherit; font-size: 15px; }
+  .seg { display: flex; background: var(--field); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; padding: 8px; border-radius: 8px; font-size: 15px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
   .seg button.on { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.12); font-weight: 600; }
-  textarea { width: 100%; min-height: 96px; border: 1px solid var(--line); border-radius: 10px; padding: 10px;
-    font: inherit; background: var(--bg); color: var(--ink); resize: vertical; margin-top: 10px; }
-  .row { display: flex; align-items: center; gap: 12px; margin-top: 12px; }
-  .row label { flex: 0 0 auto; min-width: 110px; font-size: 15px; }
-  .row input[type=range] { flex: 1; accent-color: var(--accent); }
-  .row .val { width: 32px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
-  .toggle { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; font-size: 15px; }
-  .toggle input { width: 20px; height: 20px; accent-color: var(--accent); }
+  .seg.big button { padding: 10px; font-size: 16px; }
+  textarea { width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+    font: inherit; font-size: 17px; background: var(--field); color: var(--ink); resize: vertical; margin-top: 12px; }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .toolbar { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+  .toolbar .seg { flex: 1 1 auto; }
+  .tool { width: 40px; border: 0; background: transparent; border-radius: 8px; display: grid; place-items: center; padding: 6px; }
+  .tool.on { background: var(--card); box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+  .row { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+  .row label { flex: 0 0 auto; min-width: 92px; font-size: 15px; }
+  .row input[type=range] { flex: 1; accent-color: var(--accent); min-width: 0; }
+  .row .val { width: 34px; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); font-size: 14px; }
+  .switch { display: flex; align-items: center; justify-content: space-between; margin-top: 14px; font-size: 15px; }
+  .switch input { appearance: none; -webkit-appearance: none; width: 44px; height: 26px; border-radius: 13px;
+    background: var(--line); position: relative; transition: background .15s; margin: 0; cursor: pointer; }
+  .switch input::before { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+    background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.25); transition: transform .15s; }
+  .switch input:checked { background: var(--accent); }
+  .switch input:checked::before { transform: translateX(18px); }
+
+  .drop { margin-top: 12px; width: 100%; border: 2px dashed var(--line); border-radius: 12px; background: var(--field);
+    padding: 26px 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--muted); }
+  .drop svg { width: 30px; height: 30px; }
+  .drop strong { color: var(--ink); font-size: 16px; }
+  .drop.over { border-color: var(--accent); }
+  .photo-bar { margin-top: 12px; display: flex; align-items: center; gap: 10px; }
+  .photo-bar .name { flex: 1; color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--line);
-    background: var(--card); color: var(--ink); border-radius: 10px; padding: 10px 14px; font: inherit; font-size: 15px; }
-  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent; font-weight: 600; }
-  .btn:disabled { opacity: .45; }
-  .file { margin-top: 10px; display: flex; gap: 10px; align-items: center; }
-  .file .name { color: var(--muted); font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .preview { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-  .preview canvas { width: 100%; max-width: 384px; background: var(--paper); image-rendering: pixelated;
-    border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.18); }
-  .hint { font-size: 13px; color: var(--muted); }
-  .dock { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+    background: var(--card); border-radius: 10px; padding: 9px 14px; font-size: 15px; }
+  .notice { border-color: var(--warn); color: var(--warn); font-size: 14px; }
+
+  /* Dock */
+  .dock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
     background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
     border-top: 1px solid var(--line); }
-  .dock .inner { max-width: 520px; margin: 0 auto; display: flex; gap: 10px; align-items: center; }
-  .dock .primary { flex: 1; padding: 14px; font-size: 17px; }
-  progress { width: 100%; height: 6px; margin-top: 8px; accent-color: var(--accent); }
+  .dock .inner { max-width: 520px; margin: 0 auto; }
+  .print { position: relative; overflow: hidden; width: 100%; border: 0; border-radius: 14px; padding: 15px;
+    background: var(--accent); color: var(--accent-ink); font-size: 17px; font-weight: 600; }
+  .print:disabled { opacity: .45; cursor: default; }
+  .print.secondary { background: var(--card); color: var(--ink); border: 1px solid var(--line); }
+  .print .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: rgba(255,255,255,.22); transition: width .2s; }
+  .print .label { position: relative; }
+
+  /* Settings sheet */
+  dialog { border: 0; padding: 0; background: transparent; max-width: 520px; width: 100%; margin: auto auto 0; color: var(--ink); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  .sheet { background: var(--bg); border-radius: 18px 18px 0 0; padding: 8px 16px calc(20px + env(safe-area-inset-bottom));
+    max-height: 85vh; overflow: auto; }
+  .sheet .grab { width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: 0 auto 10px; }
+  .sheet-head { display: flex; align-items: center; margin-bottom: 12px; }
+  .sheet-head h2 { flex: 1; margin: 0; font-size: 18px; }
+  .link { border: 0; background: none; color: var(--accent); font-size: 16px; font-weight: 600; padding: 6px; }
   details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
   #log { font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); white-space: pre-wrap;
-    max-height: 200px; overflow: auto; margin: 8px 0 0; }
-  .notice { border-color: var(--warn); color: var(--warn); font-size: 14px; }
+    max-height: 240px; overflow: auto; margin: 8px 0 0; }
+
+  /* Toast */
+  .toast { position: fixed; left: 50%; bottom: calc(96px + env(safe-area-inset-bottom)); transform: translate(-50%, 20px);
+    background: var(--ink); color: var(--bg); padding: 10px 16px; border-radius: 12px; font-size: 15px; z-index: 10;
+    opacity: 0; transition: opacity .2s, transform .2s; pointer-events: none; max-width: calc(100% - 32px); text-align: center; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .toast.error { background: var(--warn); color: #fff; }
 </style>
 </head>
 <body>
 <main>
   <header>
     <h1>Cat Printer</h1>
-    <span class="status"><span class="dot" id="dot"></span><span id="statusText">Not connected</span></span>
+    <button class="pill" id="connectPill" aria-label="Printer connection">
+      <span class="dot" id="dot"></span><span id="statusText">Connect</span>
+    </button>
+    <button class="icon-btn" id="settingsBtn" aria-label="Printer settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>
+    </button>
   </header>
 
   <div class="card notice" id="noBluetooth" hidden>
-    This browser can't use Bluetooth. On iPhone, open this page in the free <b>Bluefy</b> app.
+    This browser can't use Bluetooth. On iPhone, open this page in the free <b>Bluefy</b> app. On a computer or Android, use Chrome.
+  </div>
+
+  <div class="paper-wrap">
+    <div class="paper" id="paper">
+      <div class="paper-scroll"><canvas id="preview" width="384" height="120"></canvas></div>
+      <div class="empty" id="emptyMsg" hidden></div>
+    </div>
+    <span class="hint" id="previewInfo"></span>
   </div>
 
   <div class="card">
-    <h2>What to print</h2>
-    <div class="seg" id="sourceSeg"><button data-v="text" class="on">Text</button><button data-v="image">Photo</button></div>
-    <div id="textBox">
-      <textarea id="text">Hello from my iPhone!</textarea>
-      <div class="row"><label>Size</label><input type="range" id="size" min="12" max="80" step="1" value="28"><span class="val" id="sizeVal">28</span></div>
-      <div class="toggle"><span>Bold</span><input type="checkbox" id="bold"></div>
-      <div class="row"><label>Align</label>
-        <div class="seg" id="alignSeg" style="flex:1"><button data-v="left" class="on">Left</button><button data-v="center">Center</button><button data-v="right">Right</button></div>
-      </div>
+    <div class="seg big" id="sourceSeg">
+      <button data-v="text" class="on">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 6V4h14v2M12 4v16M9 20h6"/></svg>Text</button>
+      <button data-v="image">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 17l-5-5-9 8"/></svg>Photo</button>
     </div>
+
+    <div id="textBox">
+      <textarea id="text" placeholder="Type something to print…"></textarea>
+      <div class="toolbar">
+        <div class="seg" id="fontSeg"><button data-v="sans" class="on">Sans</button><button data-v="serif" style="font-family:Georgia,serif">Serif</button><button data-v="mono" style="font-family:ui-monospace,Menlo,monospace">Mono</button></div>
+        <div class="seg">
+          <button class="tool" id="boldBtn" aria-label="Bold" aria-pressed="false"><b style="font-size:17px">B</b></button>
+        </div>
+        <div class="seg" id="alignSeg">
+          <button class="tool on" data-v="left" aria-label="Align left"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h10M4 18h14"/></svg></button>
+          <button class="tool" data-v="center" aria-label="Align center"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M7 12h10M5 18h14"/></svg></button>
+          <button class="tool" data-v="right" aria-label="Align right"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M10 12h10M6 18h14"/></svg></button>
+        </div>
+      </div>
+      <div class="row"><label for="size">Text size</label><input type="range" id="size" min="12" max="80" step="1" value="28"><span class="val" id="sizeVal">28</span></div>
+    </div>
+
     <div id="imageBox" hidden>
-      <div class="file"><label class="btn" for="file">Choose photo…</label><span class="name" id="fileName">No photo yet</span></div>
+      <button class="drop" id="dropZone">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 001 1h14a1 1 0 001-1v-3"/></svg>
+        <strong>Choose a photo</strong>
+        <span class="hint">or drop / paste one here</span>
+      </button>
+      <div class="photo-bar" id="photoBar" hidden>
+        <span class="name" id="fileName"></span>
+        <label class="btn" for="file">Change</label>
+      </div>
       <input type="file" id="file" accept="image/*" hidden>
+      <div class="row"><label for="brightness">Brightness</label><input type="range" id="brightness" min="-80" max="80" step="1" value="0"><span class="val" id="brightnessVal">0</span></div>
+      <div class="row"><label for="contrast">Contrast</label><input type="range" id="contrast" min="-80" max="80" step="1" value="0"><span class="val" id="contrastVal">0</span></div>
     </div>
   </div>
 
   <div class="card">
     <h2>Look</h2>
-    <div class="row"><label>Style</label>
-      <div class="seg" id="modeSeg" style="flex:1"><button data-v="threshold" class="on">Solid</button><button data-v="dither">Dithered</button></div>
-    </div>
-    <div class="row"><label>Ink amount</label><input type="range" id="threshold" min="40" max="220" step="1" value="128"><span class="val" id="thresholdVal">128</span></div>
-    <div class="toggle"><span>Invert</span><input type="checkbox" id="invert"></div>
-  </div>
-
-  <div class="card">
-    <h2>Printer</h2>
-    <div class="row"><label>Darkness</label><input type="range" id="darkness" min="1" max="5" step="1" value="5"><span class="val" id="darknessVal">5</span></div>
-    <div class="row"><label>Speed</label><input type="range" id="speed" min="8" max="48" step="2" value="32"><span class="val" id="speedVal">32</span></div>
-    <p class="hint">Slower speed prints darker. Darkness 5 and speed 32 were the darkest clean settings in testing.</p>
-    <div class="row"><label>Feed after</label><input type="range" id="feed" min="0" max="200" step="10" value="80"><span class="val" id="feedVal">80</span></div>
-  </div>
-
-  <div class="card preview">
-    <canvas id="preview" width="384" height="40"></canvas>
-    <span class="hint" id="previewInfo"></span>
-  </div>
-
-  <div class="card">
-    <details open><summary>Log</summary><div id="log"></div></details>
+    <div class="seg" id="modeSeg"><button data-v="threshold" class="on">Solid</button><button data-v="dither">Dithered</button></div>
+    <p class="hint" id="modeHint" style="margin:8px 0 0">Crisp black and white — best for text.</p>
+    <div class="row"><label for="threshold">Ink</label><input type="range" id="threshold" min="40" max="220" step="1" value="128"><span class="val" id="thresholdVal">128</span></div>
+    <label class="switch"><span>Invert (white on black)</span><input type="checkbox" id="invert"></label>
   </div>
 </main>
 
 <div class="dock">
   <div class="inner">
-    <button class="btn" id="connectBtn">Connect</button>
-    <button class="btn primary" id="printBtn" disabled>Print</button>
+    <button class="print" id="printBtn"><span class="fill" id="printFill"></span><span class="label" id="printLabel">Connect printer</span></button>
   </div>
-  <div class="inner"><progress id="progress" value="0" max="1" hidden></progress></div>
 </div>
+
+<dialog id="settings">
+  <div class="sheet">
+    <div class="grab"></div>
+    <div class="sheet-head"><h2>Printer settings</h2><button class="link" id="settingsDone">Done</button></div>
+    <div class="card">
+      <div class="row" style="margin-top:0"><label for="darkness">Darkness</label><input type="range" id="darkness" min="1" max="5" step="1" value="5"><span class="val" id="darknessVal">5</span></div>
+      <div class="row"><label for="speed">Speed</label><input type="range" id="speed" min="8" max="48" step="2" value="32"><span class="val" id="speedVal">32</span></div>
+      <p class="hint">Slower speed prints darker. Darkness 5 and speed 32 were the darkest clean settings in testing.</p>
+      <div class="row"><label for="feed">Feed after</label><input type="range" id="feed" min="0" max="200" step="10" value="80"><span class="val" id="feedVal">80</span></div>
+      <p class="hint">Blank paper fed after printing, in dot rows (8 = 1 mm).</p>
+      <button class="btn" id="resetPrinter" style="margin-top:4px">Reset to defaults</button>
+    </div>
+    <div class="card">
+      <details><summary>Connection log</summary><div id="log"></div></details>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
 
 <script>
 // ---------------------------------------------------------------------------------------------
@@ -205,7 +301,7 @@ async function step(label, fn) {
 function setStatus(text, kind) {
   document.getElementById('statusText').textContent = text;
   document.getElementById('dot').className = 'dot' + (kind ? ' ' + kind : '');
-  document.getElementById('connectBtn').textContent = bt.ready || bt.busy ? 'Disconnect' : 'Connect';
+  document.getElementById('connectPill').title = bt.ready ? 'Tap to disconnect' : 'Tap to connect';
   updatePrintButton();
 }
 
@@ -281,6 +377,7 @@ async function linkUp() {
 
 async function connect() {
   if (!navigator.bluetooth) { document.getElementById('noBluetooth').hidden = false; return; }
+  bt.lastError = null;
   try {
     log('Browser: ' + navigator.userAgent);
     bt.device = await step('choose printer', () => navigator.bluetooth.requestDevice({
@@ -290,14 +387,14 @@ async function connect() {
     log('Chose ' + (bt.device.name || 'a device') + '.');
     bt.device.addEventListener('gattserverdisconnected', () => {
       bt.ready = false;
-      if (!bt.reconnecting) { setStatus('Not connected'); log('Disconnected.'); }
+      if (!bt.reconnecting) { setStatus('Not connected'); log('Disconnected.'); toast('Printer disconnected'); }
     });
     await linkUp();
   } catch (e) {
     bt.ready = false;
     setStatus('Not connected');
     if (e && e.name === 'NotFoundError') log('No printer chosen.');
-    else log('Connect failed: ' + describe(e));
+    else { bt.lastError = e; log('Connect failed: ' + describe(e)); }
   }
 }
 
@@ -320,8 +417,7 @@ async function waitIdle() {
 }
 
 async function printJob(bytes) {
-  const bar = document.getElementById('progress');
-  bt.busy = true; bar.hidden = false; bar.value = 0;
+  bt.busy = true; setProgress(0);
   setStatus('Printing…', 'busy');
   const started = performance.now();
   try {
@@ -329,9 +425,10 @@ async function printJob(bytes) {
       try {
         await waitIdle();
         await sleep(500);
-        await send(bytes, f => bar.value = f);
-        bar.value = 1;
+        await send(bytes, setProgress);
+        setProgress(1);
         log(`Sent to printer in ${((performance.now() - started) / 1000).toFixed(1)} s.`);
+        toast('Printed');
         return;
       } catch (e) {
         if (!(e instanceof Stall) || attempt === 2) throw e;
@@ -345,18 +442,25 @@ async function printJob(bytes) {
     }
   } catch (e) {
     log('Print failed: ' + describe(e) + '. Try again.');
+    toast('Print failed — try again', 'error');
   } finally {
-    bt.busy = false; bt.reconnecting = false; bar.hidden = true;
+    bt.busy = false; bt.reconnecting = false; setProgress(null);
     setStatus(bt.device && bt.device.gatt.connected && bt.ready ? 'Connected · ' + (bt.device.name || 'printer') : 'Not connected',
               bt.ready ? 'ok' : '');
   }
 }
 
+
 // ---------------------------------------------------------------------------------------------
 // Rendering: text or photo → 1-bit rows, 48 bytes each, least significant bit = leftmost dot
 // ---------------------------------------------------------------------------------------------
+const FONTS = {
+  sans: '-apple-system, "SF Pro Text", system-ui, sans-serif',
+  serif: 'Georgia, "Times New Roman", serif',
+  mono: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+};
 const ui = {
-  source: 'text', align: 'left', mode: 'threshold', image: null,
+  source: 'text', align: 'left', mode: 'threshold', font: 'sans', bold: false, image: null,
   get: id => document.getElementById(id),
 };
 
@@ -380,11 +484,13 @@ function wrapLines(ctx, text, maxW) {
 }
 
 function renderText() {
-  const size = +ui.get('size').value, bold = ui.get('bold').checked;
+  const text = ui.get('text').value;
+  if (!text.trim()) return null;
+  const size = +ui.get('size').value;
   const c = document.createElement('canvas'), ctx = c.getContext('2d');
-  const font = `${bold ? '700' : '400'} ${size}px -apple-system, "SF Pro Text", system-ui, sans-serif`;
+  const font = `${ui.bold ? '700' : '400'} ${size}px ${FONTS[ui.font]}`;
   ctx.font = font;
-  const lines = wrapLines(ctx, ui.get('text').value || ' ', WIDTH - 12);
+  const lines = wrapLines(ctx, text, WIDTH - 12);
   const lineH = Math.round(size * 1.25);
   c.width = WIDTH; c.height = Math.max(1, lines.length * lineH + 8);
   ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
@@ -409,9 +515,14 @@ function renderImage() {
 function toRows(canvas) {
   const h = canvas.height, data = canvas.getContext('2d').getImageData(0, 0, WIDTH, h).data;
   const invert = ui.get('invert').checked, cut = +ui.get('threshold').value, dither = ui.mode === 'dither';
+  // Brightness / contrast only apply to photos.
+  const isPhoto = ui.source === 'image';
+  const bright = isPhoto ? +ui.get('brightness').value : 0, con = isPhoto ? +ui.get('contrast').value * 2 : 0;
+  const cf = (259 * (con + 255)) / (255 * (259 - con));
   const g = new Float32Array(WIDTH * h);
   for (let i = 0; i < WIDTH * h; i++) {
-    const v = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+    let v = 0.299 * data[i * 4] + 0.587 * data[i * 4 + 1] + 0.114 * data[i * 4 + 2];
+    if (isPhoto) v = Math.max(0, Math.min(255, cf * (v - 128) + 128 + bright));
     g[i] = invert ? 255 - v : v;
   }
   const rows = [];
@@ -439,12 +550,15 @@ let currentRows = [];
 function refresh() {
   const src = ui.source === 'text' ? renderText() : renderImage();
   currentRows = src ? toRows(src) : [];
-  const pv = ui.get('preview'), info = ui.get('previewInfo');
+  const pv = ui.get('preview'), info = ui.get('previewInfo'), empty = ui.get('emptyMsg');
   if (!currentRows.length) {
-    pv.width = WIDTH; pv.height = 40;
-    const ctx = pv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, WIDTH, 40);
-    info.textContent = 'Choose a photo to see it here';
+    pv.width = WIDTH; pv.height = 120;
+    const ctx = pv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, WIDTH, 120);
+    empty.textContent = ui.source === 'text' ? 'Your print preview appears here' : 'Choose a photo to preview it';
+    empty.hidden = false;
+    info.textContent = '';
   } else {
+    empty.hidden = true;
     pv.width = WIDTH; pv.height = currentRows.length;
     const ctx = pv.getContext('2d'), img = ctx.createImageData(WIDTH, currentRows.length);
     currentRows.forEach((row, y) => {
@@ -454,13 +568,36 @@ function refresh() {
       }
     });
     ctx.putImageData(img, 0, 0);
-    info.textContent = `${currentRows.length} lines · ${Math.round(currentRows.length / 8)} mm of paper`;
+    info.textContent = `About ${Math.max(1, Math.round(currentRows.length / 8))} mm of paper`;
   }
   updatePrintButton();
 }
 
+// ---------------------------------------------------------------------------------------------
+// UI state
+// ---------------------------------------------------------------------------------------------
+let toastTimer;
+function toast(msg, kind) {
+  const t = ui.get('toast');
+  t.textContent = msg; t.className = 'toast show' + (kind ? ' ' + kind : '');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.className = 'toast', 3200);
+}
+
+let connecting = false;
+function setProgress(f) {
+  ui.get('printFill').style.width = f == null ? '0' : Math.round(f * 100) + '%';
+  if (f != null) ui.get('printLabel').textContent = `Printing… ${Math.round(f * 100)}%`;
+}
+
 function updatePrintButton() {
-  ui.get('printBtn').disabled = !bt.ready || bt.busy || !currentRows.length;
+  const btn = ui.get('printBtn'), label = ui.get('printLabel');
+  btn.classList.remove('secondary');
+  if (!navigator.bluetooth) { btn.disabled = true; label.textContent = 'Bluetooth not available'; return; }
+  if (bt.busy) { btn.disabled = true; return; }                 // label driven by setProgress
+  if (connecting) { btn.disabled = true; label.textContent = 'Connecting…'; return; }
+  if (!bt.ready) { btn.disabled = false; btn.classList.add('secondary'); label.textContent = 'Connect printer'; return; }
+  btn.disabled = !currentRows.length;
+  label.textContent = currentRows.length ? 'Print' : ui.source === 'text' ? 'Type something to print' : 'Choose a photo';
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -474,7 +611,7 @@ const store = {
 function segmented(id, onChange) {
   const seg = ui.get(id);
   seg.addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
+    const b = e.target.closest('button[data-v]'); if (!b) return;
     seg.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b));
     onChange(b.dataset.v);
   });
@@ -484,46 +621,103 @@ function setSeg(id, v) { ui.get(id).querySelectorAll('button').forEach(x => x.cl
 let refreshTimer;
 const scheduleRefresh = () => { clearTimeout(refreshTimer); refreshTimer = setTimeout(refresh, 60); };
 
-segmented('sourceSeg', v => {
-  ui.source = v;
+const MODE_HINTS = {
+  threshold: 'Crisp black and white — best for text and line art.',
+  dither: 'Dots simulate grey shades — best for photos.',
+};
+function setMode(v) { ui.mode = v; setSeg('modeSeg', v); ui.get('modeHint').textContent = MODE_HINTS[v]; }
+
+function setSource(v) {
+  ui.source = v; setSeg('sourceSeg', v);
   ui.get('textBox').hidden = v !== 'text'; ui.get('imageBox').hidden = v !== 'image';
-  ui.mode = v === 'image' ? 'dither' : 'threshold'; setSeg('modeSeg', ui.mode);
+  setMode(v === 'image' ? 'dither' : 'threshold');
+  refresh();
+}
+segmented('sourceSeg', setSource);
+segmented('alignSeg', v => { ui.align = v; store.set('align', v); refresh(); });
+segmented('fontSeg', v => { ui.font = v; store.set('font', v); refresh(); });
+segmented('modeSeg', v => { setMode(v); refresh(); });
+ui.get('boldBtn').addEventListener('click', () => {
+  ui.bold = !ui.bold; store.set('bold', ui.bold ? '1' : '');
+  ui.get('boldBtn').classList.toggle('on', ui.bold); ui.get('boldBtn').setAttribute('aria-pressed', ui.bold);
   refresh();
 });
-segmented('alignSeg', v => { ui.align = v; refresh(); });
-segmented('modeSeg', v => { ui.mode = v; refresh(); });
 
-for (const id of ['size', 'threshold', 'darkness', 'speed', 'feed']) {
+const PRINTER_KEYS = ['darkness', 'speed', 'feed'];
+const PRINTER_DEFAULTS = { darkness: 5, speed: 32, feed: 80 };
+for (const id of ['size', 'threshold', 'brightness', 'contrast', ...PRINTER_KEYS]) {
   const el = ui.get(id), val = ui.get(id + 'Val');
-  if (['darkness', 'speed', 'feed'].includes(id)) el.value = store.get(id, el.value);
+  if (PRINTER_KEYS.includes(id) || id === 'size') el.value = store.get(id, el.value);
   val.textContent = el.value;
   el.addEventListener('input', () => {
     val.textContent = el.value;
-    if (['darkness', 'speed', 'feed'].includes(id)) store.set(id, el.value); else scheduleRefresh();
+    if (PRINTER_KEYS.includes(id)) store.set(id, el.value);
+    else { if (id === 'size') store.set(id, el.value); scheduleRefresh(); }
   });
 }
-ui.get('text').addEventListener('input', scheduleRefresh);
-ui.get('bold').addEventListener('change', refresh);
-ui.get('invert').addEventListener('change', refresh);
-
-ui.get('file').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
-  try {
-    ui.image = await createImageBitmap(f, { imageOrientation: 'from-image' }).catch(() => createImageBitmap(f));
-    ui.get('fileName').textContent = f.name;
-  } catch (err) { log('Could not open that image: ' + err.message); }
-  refresh();
+ui.get('resetPrinter').addEventListener('click', () => {
+  for (const id of PRINTER_KEYS) { ui.get(id).value = PRINTER_DEFAULTS[id]; ui.get(id + 'Val').textContent = PRINTER_DEFAULTS[id]; store.set(id, PRINTER_DEFAULTS[id]); }
 });
 
-ui.get('connectBtn').addEventListener('click', () => (bt.ready || bt.busy) ? disconnect() : connect());
+// Restore text options and the draft.
+ui.font = store.get('font', 'sans'); setSeg('fontSeg', ui.font);
+ui.align = store.get('align', 'left'); setSeg('alignSeg', ui.align);
+ui.bold = !!store.get('bold', ''); ui.get('boldBtn').classList.toggle('on', ui.bold); ui.get('boldBtn').setAttribute('aria-pressed', ui.bold);
+ui.get('text').value = store.get('draft', 'Hello from my cat printer!');
+ui.get('text').addEventListener('input', () => { store.set('draft', ui.get('text').value); scheduleRefresh(); });
+ui.get('invert').addEventListener('change', refresh);
+
+// Photos: picker, drag and drop, paste.
+async function loadImage(f) {
+  if (!f || !f.type.startsWith('image/')) return;
+  try {
+    ui.image = await createImageBitmap(f, { imageOrientation: 'from-image' }).catch(() => createImageBitmap(f));
+    ui.get('fileName').textContent = f.name || 'Pasted image';
+    ui.get('dropZone').hidden = true; ui.get('photoBar').hidden = false;
+    ui.get('brightness').value = 0; ui.get('brightnessVal').textContent = 0;
+    ui.get('contrast').value = 0; ui.get('contrastVal').textContent = 0;
+    if (ui.source !== 'image') setSource('image'); else refresh();
+  } catch (err) { log('Could not open that image: ' + err.message); toast("Couldn't open that image", 'error'); }
+}
+ui.get('dropZone').addEventListener('click', () => ui.get('file').click());
+ui.get('file').addEventListener('change', e => { loadImage(e.target.files[0]); e.target.value = ''; });
+const dz = ui.get('dropZone');
+document.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('over'); });
+document.addEventListener('dragleave', e => { if (!e.relatedTarget) dz.classList.remove('over'); });
+document.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('over'); loadImage(e.dataTransfer.files[0]); });
+document.addEventListener('paste', e => {
+  const item = [...(e.clipboardData?.items || [])].find(i => i.type.startsWith('image/'));
+  if (item) { e.preventDefault(); loadImage(item.getAsFile()); }
+});
+
+// Settings sheet.
+const sheet = ui.get('settings');
+ui.get('settingsBtn').addEventListener('click', () => sheet.showModal());
+ui.get('settingsDone').addEventListener('click', () => sheet.close());
+sheet.addEventListener('click', e => { if (e.target === sheet) sheet.close(); });
+
+// Connection & printing.
+async function doConnect() {
+  connecting = true; updatePrintButton();
+  try { await connect(); } finally { connecting = false; updatePrintButton(); }
+  if (bt.ready) toast('Printer connected');
+  else if (navigator.bluetooth && bt.lastError) toast("Couldn't connect — make sure the printer is on", 'error');
+}
+ui.get('connectPill').addEventListener('click', () => {
+  if (bt.busy || connecting) return;
+  if (bt.ready) disconnect(); else doConnect();
+});
 ui.get('printBtn').addEventListener('click', () => {
-  if (!currentRows.length || !bt.ready || bt.busy) return;
+  if (bt.busy || connecting) return;
+  if (!bt.ready) { doConnect(); return; }
+  if (!currentRows.length) return;
   const density = +ui.get('darkness').value, speed = +ui.get('speed').value, feed = +ui.get('feed').value;
   log(`Printing ${currentRows.length} lines (darkness ${density}, speed ${speed})…`);
   printJob(jobBytes(currentRows, { density, speed, feed }));
 });
 
 if (!navigator.bluetooth) ui.get('noBluetooth').hidden = false;
+setStatus('Not connected');
 refresh();
 </script>
 </body>
