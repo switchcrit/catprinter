@@ -122,7 +122,7 @@
   </div>
 
   <div class="card">
-    <details><summary>Log</summary><div id="log"></div></details>
+    <details open><summary>Log</summary><div id="log"></div></details>
   </div>
 </main>
 
@@ -144,6 +144,8 @@
 //  • if the printer stops taking data, drop the link, reconnect and resend (it recovers)
 // ---------------------------------------------------------------------------------------------
 const WIDTH = 384, BPR = 48, WRITE_SIZE = 20, HEAT = 15000;
+const uuid16 = n => `0000${n.toString(16).padStart(4, '0')}-0000-1000-8000-00805f9b34fb`;
+const ADV_SVC = uuid16(0xaf30), PRINT_SVC = uuid16(0xae30), TX_CHAR = uuid16(0xae01), RX_CHAR = uuid16(0xae02);
 const LATTICE_START = [0xAA,0x55,0x17,0x38,0x44,0x5F,0x5F,0x5F,0x44,0x38,0x2C];
 const LATTICE_END   = [0xAA,0x55,0x17,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x17];
 
@@ -187,6 +189,18 @@ function log(msg) {
   el.scrollTop = el.scrollHeight;
 }
 const hex = b => Array.from(b, x => x.toString(16).padStart(2, '0')).join(' ');
+function describe(e) {
+  if (e == null) return String(e);
+  if (typeof e === 'string') return e;
+  const parts = [e.name, e.message, e.code !== undefined ? 'code ' + e.code : ''].filter(Boolean);
+  if (parts.length) return parts.join(': ');
+  try { return JSON.stringify(e) || String(e); } catch (_) { return String(e); }
+}
+async function step(label, fn) {
+  log('… ' + label);
+  try { return await fn(); }
+  catch (e) { const err = new Error(`${label} failed (${describe(e)})`); err.step = label; throw err; }
+}
 
 function setStatus(text, kind) {
   document.getElementById('statusText').textContent = text;
@@ -210,7 +224,7 @@ function onNotify(e) {
 
 async function rawWrite(piece) {
   const c = bt.tx;
-  const p = c.writeValueWithoutResponse ? c.writeValueWithoutResponse(piece) : c.writeValue(piece);
+  const p = typeof c.writeValueWithoutResponse === 'function' ? c.writeValueWithoutResponse(piece) : c.writeValue(piece);
   // A write that never completes means the printer has stopped taking data.
   let timer;
   await Promise.race([p, new Promise((_, rej) => { timer = setTimeout(() => rej(new Stall('write stalled')), 4000); })]);
@@ -238,16 +252,27 @@ function request(cmd, payload, timeout) {
 
 async function linkUp() {
   setStatus('Connecting…', 'busy');
-  const server = await bt.device.gatt.connect();
-  const svc = await server.getPrimaryService(0xae30);
-  bt.tx = await svc.getCharacteristic(0xae01);
-  bt.rx = await svc.getCharacteristic(0xae02);
-  await bt.rx.startNotifications();
+  const server = await step('connect to printer', () => bt.device.gatt.connect());
+  let svc;
+  try { svc = await step('find print service', () => server.getPrimaryService(PRINT_SVC)); }
+  catch (e) {
+    try { const all = await server.getPrimaryServices(); log('Services the printer offers: ' + all.map(x => x.uuid).join(', ')); }
+    catch (e2) { log('Could not list services: ' + describe(e2)); }
+    throw e;
+  }
+  bt.tx = await step('find command channel', () => svc.getCharacteristic(TX_CHAR));
+  bt.rx = await step('find reply channel', () => svc.getCharacteristic(RX_CHAR));
+  const pr = bt.tx.properties || {};
+  log(`Command channel: writeWithoutResponse=${!!pr.writeWithoutResponse}, write=${!!pr.write}; ` +
+      `browser has writeValueWithoutResponse=${typeof bt.tx.writeValueWithoutResponse === 'function'}, ` +
+      `writeValue=${typeof bt.tx.writeValue === 'function'}`);
+  bt.rx.removeEventListener('characteristicvaluechanged', onNotify);
   bt.rx.addEventListener('characteristicvaluechanged', onNotify);
+  await step('turn on printer replies', () => bt.rx.startNotifications());
   bt.paused = false;
   // Greeting, gated on replies (data sent while a reply is pending freezes the MX10).
-  if (!await request(0xA8, [0], 3000)) log('No reply to device info; continuing.');
-  if (!await request(0xBB, [1], 3000)) log('No reply to hello; continuing.');
+  if (!await step('greet printer (device info)', () => request(0xA8, [0], 3000))) log('No reply to device info; continuing.');
+  if (!await step('greet printer (hello)', () => request(0xBB, [1], 3000))) log('No reply to hello; continuing.');
   await sleep(1000);
   bt.ready = true;
   setStatus('Connected · ' + (bt.device.name || 'printer'), 'ok');
@@ -257,10 +282,12 @@ async function linkUp() {
 async function connect() {
   if (!navigator.bluetooth) { document.getElementById('noBluetooth').hidden = false; return; }
   try {
-    bt.device = await navigator.bluetooth.requestDevice({
-      filters: [{ services: [0xaf30] }, { namePrefix: 'MX' }],
-      optionalServices: [0xae30],
-    });
+    log('Browser: ' + navigator.userAgent);
+    bt.device = await step('choose printer', () => navigator.bluetooth.requestDevice({
+      filters: [{ services: [ADV_SVC] }, { namePrefix: 'MX' }],
+      optionalServices: [PRINT_SVC, ADV_SVC],
+    }));
+    log('Chose ' + (bt.device.name || 'a device') + '.');
     bt.device.addEventListener('gattserverdisconnected', () => {
       bt.ready = false;
       if (!bt.reconnecting) { setStatus('Not connected'); log('Disconnected.'); }
@@ -269,7 +296,8 @@ async function connect() {
   } catch (e) {
     bt.ready = false;
     setStatus('Not connected');
-    if (e.name !== 'NotFoundError') log('Connect failed: ' + e.message);
+    if (e && e.name === 'NotFoundError') log('No printer chosen.');
+    else log('Connect failed: ' + describe(e));
   }
 }
 
@@ -316,7 +344,7 @@ async function printJob(bytes) {
       }
     }
   } catch (e) {
-    log('Print failed: ' + e.message + '. Try again.');
+    log('Print failed: ' + describe(e) + '. Try again.');
   } finally {
     bt.busy = false; bt.reconnecting = false; bar.hidden = true;
     setStatus(bt.device && bt.device.gatt.connected && bt.ready ? 'Connected · ' + (bt.device.name || 'printer') : 'Not connected',
